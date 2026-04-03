@@ -1,0 +1,119 @@
+[project]
+name = "mindloom"
+version = "0.1.0"
+description = "Weave raw knowledge into structured Obsidian wikis, powered by Claude Code"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bb25>=0.4.0",
+    "httpx>=0.28.1",
+    "markdownify>=1.2.2",
+    "pymupdf4llm>=1.27.2.2",
+    "tiktoken>=0.12.0",
+    "trafilatura>=2.0.0",
+    "typer>=0.24.1",
+]
+
+[project.scripts]
+loom = "mindloom.cli:app"
+ 
+[project.urls]
+Homepage = "https://github.com/williambrach/mindloom"
+
+[project.optional-dependencies]
+browser = [
+    "playwright>=1.40",
+]
+dev = [
+    "black>=26.3.1",
+    "ruff>=0.15.9",
+    "ty>=0.0.28",
+]
+ 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+ 
+[tool.hatch.build.targets.wheel]
+packages = ["mindloom"]
+
+[tool.ruff]
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "models.py"
+]
+
+
+# Same as Black.
+line-length = 88
+target-version = "py312"
+
+
+[tool.ruff.lint]
+#https://beta.ruff.rs/docs/rules/
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "G",
+    "SIM1",
+    "PLE",
+    "N802", "N803", "N815", "N816","N806",
+    "ANN",
+    "C901",
+    "UP",  # pyupgrade,
+    "T201", # check if print statement exists
+    "PLR0915"
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "G004",
+    "ANN003",
+    "B904",
+    "G201"
+]
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F", "G", "I", "N", "Q", "S", "T", "W", "ANN", "ARG", "BLE", "COM", "DJ", "DTZ", "EM", "ERA", "EXE", "FBT", "ICN", "INP", "ISC", "NPY", "PD", "PGH", "PIE", "PL", "PT", "PTH", "PYI", "RET", "RSE", "RUF", "SIM", "SLF", "TCH", "TID", "TRY", "UP", "YTT"]
+unfixable = []
+
+[tool.ruff.lint.pylint]
+max-statements = 60
+
+[tool.ruff.lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+known-third-party = ["fastapi", "pydantic", "starlette"]
