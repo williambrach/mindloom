@@ -3,7 +3,16 @@ name = "mindloom"
 version = "0.1.0"
 description = "Weave raw knowledge into structured Obsidian wikis, powered by Claude Code"
 readme = "README.md"
+license = "MIT"
+authors = [{ name = "William Brach" }]
 requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+keywords = ["obsidian", "knowledge-base", "wiki", "claude"]
 dependencies = [
     "bb25>=0.4.0",
     "httpx>=0.28.1",

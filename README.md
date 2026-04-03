@@ -74,6 +74,10 @@ loom open wiki/attention.md -v ~/my-wiki            # opens specific note
 
 ## Python API
 
+```bash
+uv add mindloom
+```
+
 All functions are importable and return dicts/values (no printing, no `sys.exit`).
 
 ```python
