@@ -28,6 +28,7 @@ from mindloom.search import (
 )
 from mindloom.vault import (
     LOOM_MARKER,
+    append_log,
     read_frontmatter,
     resolve_vault,
     slugify,
@@ -40,7 +41,8 @@ logger = logging.getLogger("mindloom")
 
 
 def _extract_pdf(
-    url: str, vault: Path,
+    url: str,
+    vault: Path,
 ) -> tuple[str, str, str, str]:
     """Download a PDF and extract markdown + metadata via pymupdf4llm."""
     import tempfile
@@ -90,9 +92,7 @@ _JS_SHELL_MARKERS = [
 
 def _is_js_shell(html: str) -> bool:
     """Detect if HTML is a JS framework shell with little real content."""
-    body_match = re.search(
-        r"<body[^>]*>(.*)</body>", html, re.DOTALL | re.IGNORECASE
-    )
+    body_match = re.search(r"<body[^>]*>(.*)</body>", html, re.DOTALL | re.IGNORECASE)
     body = body_match.group(1) if body_match else html
     text = re.sub(r"<script[^>]*>.*?</script>", "", body, flags=re.DOTALL)
     text = re.sub(r"<[^>]+>", "", text).strip()
@@ -157,9 +157,7 @@ def _extract_html(url: str) -> tuple[str, str, str, str, str]:
         html = _fetch_with_browser(url)
         fetch_method = "browser"
         if not html:
-            raise RuntimeError(
-                f"Failed to fetch {url} (tried trafilatura + browser)."
-            )
+            raise RuntimeError(f"Failed to fetch {url} (tried trafilatura + browser).")
 
     md, title, author, date = _trafilatura_extract(html)
     title = title or urlparse(url).netloc
@@ -188,7 +186,10 @@ def _extract_html(url: str) -> tuple[str, str, str, str, str]:
 
 
 def _download_images(
-    markdown: str, base_url: str, img_dir: Path, slug: str,
+    markdown: str,
+    base_url: str,
+    img_dir: Path,
+    slug: str,
 ) -> str:
     """Download images referenced in markdown and rewrite paths."""
     import httpx
@@ -309,6 +310,8 @@ def add(
 
     add_to_corpus(v, rel_path)
 
+    append_log(v, "ingest", title, {"Source": url, "Raw": rel_path})
+
     result: dict[str, Any] = {
         "rel_path": rel_path,
         "title": title,
@@ -334,12 +337,13 @@ def compile_vault(
     vault: str,
     full: bool = False,
     articles: list[str] | None = None,
+    auto_lint: bool = True,
     _title: str | None = None,
     _tags: list[str] | None = None,
 ) -> dict[str, Any]:
     """Compile raw articles into wiki via Claude Code.
 
-    Returns dict with keys: compiled_count, articles, output.
+    Returns dict with keys: compiled_count, articles, output, lint_output.
     Raises RuntimeError if Claude Code is not installed.
     """
     v = resolve_vault(vault)
@@ -348,7 +352,12 @@ def compile_vault(
     if articles:
         pending_names = articles
     elif not raw_dir.exists():
-        return {"compiled_count": 0, "articles": [], "output": None}
+        return {
+            "compiled_count": 0,
+            "articles": [],
+            "output": None,
+            "lint_output": None,
+        }
     elif full:
         pending = list(raw_dir.glob("*.md"))
         pending_names = [f"raw/{f.name}" for f in pending]
@@ -361,7 +370,12 @@ def compile_vault(
         pending_names = [f"raw/{f.name}" for f in pending]
 
     if not pending_names:
-        return {"compiled_count": 0, "articles": [], "output": None}
+        return {
+            "compiled_count": 0,
+            "articles": [],
+            "output": None,
+            "lint_output": None,
+        }
 
     # If called from add() with a single article, use the targeted prompt
     if _title and len(pending_names) == 1:
@@ -388,16 +402,45 @@ def compile_vault(
         """)
 
     output = run_claude(
-        v, prompt,
+        v,
+        prompt,
         max_turns=len(pending_names) * 5 + 10,
         stream=False,
     )
     sync_corpus(v)
 
+    lint_output = None
+    if auto_lint and has_claude_code():
+        lint_output = run_claude(
+            v,
+            textwrap.dedent("""\
+                Quick post-compile lint pass. Check only the articles just compiled
+                and their neighbors:
+                1. Fix broken [[wikilinks]] (typos, wrong filenames)
+                2. Add missing cross-references between new articles and existing wiki pages
+                3. Fix orphan pages that should link to/from the new content
+                4. Verify _index.md is complete and sorted
+                Do NOT write a lint report. Just fix what you find silently.
+                If everything looks clean, do nothing.
+            """),
+            max_turns=10,
+            stream=False,
+        )
+
+    append_log(
+        v,
+        "compile",
+        f"{len(pending_names)} articles compiled",
+        {
+            "Articles": ", ".join(pending_names),
+        },
+    )
+
     return {
         "compiled_count": len(pending_names),
         "articles": pending_names,
         "output": output,
+        "lint_output": lint_output,
     }
 
 
@@ -413,17 +456,21 @@ def search(query: str, vault: str, limit: int = 10) -> list[dict[str, Any]]:
 def reindex(vault: str) -> int:
     """Rebuild the search corpus from all vault files. Returns doc count."""
     v = resolve_vault(vault)
-    return reindex_corpus(v)
+    count = reindex_corpus(v)
+    append_log(v, "reindex", f"{count} documents indexed", {})
+    return count
 
 
 def ask(
     question: str,
     vault: str,
     output_format: str = "text",
+    promote: bool = True,
 ) -> dict[str, Any]:
     """Ask a question — Claude Code researches the wiki.
 
     output_format: "text", "markdown", or "marp".
+    promote: auto-promote wiki-worthy answers to wiki/ (only when saving to file).
     Returns dict with keys: answer, output_path.
     Raises RuntimeError if Claude Code is not installed.
     """
@@ -442,6 +489,19 @@ def ask(
         extra += f" Save to outputs/{filename}"
         output_path = f"outputs/{filename}"
 
+    promote_instruction = ""
+    if promote and output_format != "text":
+        promote_instruction = textwrap.dedent("""\
+            4. **Wiki promotion**: After writing the answer, evaluate whether it contains
+               wiki-worthy content (synthesis across 2+ sources, comparisons, novel
+               connections, or coverage of a topic not yet in wiki/).
+               If so: create or update the appropriate wiki/ page following CLAUDE.md
+               compilation rules, add [[wikilinks]] bidirectionally, update _index.md,
+               and add a note at the bottom of the output file:
+               `> Promoted to wiki: [[wiki/page-name]]`
+               If the answer is purely factual retrieval or too narrow, skip promotion.
+        """)
+
     answer = run_claude(
         v,
         textwrap.dedent(f"""\
@@ -451,8 +511,19 @@ def ask(
             2. Use Grep to search wiki/, raw/, outputs/ for relevant articles
             3. Read top articles, synthesize answer with [[wikilinks]]
             {extra}
+            {promote_instruction}
         """),
         stream=False,
+    )
+
+    append_log(
+        v,
+        "query",
+        question,
+        {
+            "Output": output_path or "(terminal)",
+            "Format": output_format,
+        },
     )
 
     return {"answer": answer, "output_path": output_path}
@@ -476,6 +547,7 @@ def lint(vault: str) -> str | None:
         max_turns=20,
         stream=False,
     )
+    append_log(v, "lint", "audit completed", {"Report": "_meta/lint-report.md"})
     return output
 
 
@@ -495,9 +567,7 @@ def status(vault: str) -> dict[str, Any]:
     wiki_files = list(wiki_dir.glob("*.md")) if wiki_dir.exists() else []
 
     outputs_dir = v / "outputs"
-    output_files = (
-        list(outputs_dir.glob("*.md")) if outputs_dir.exists() else []
-    )
+    output_files = list(outputs_dir.glob("*.md")) if outputs_dir.exists() else []
 
     return {
         "vault_path": str(v),

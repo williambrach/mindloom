@@ -2,6 +2,7 @@ import os
 import platform
 import re
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 
 LOOM_MARKER = ".loom.json"
@@ -41,6 +42,22 @@ def slugify(t: str) -> str:
     hyphenated = re.sub(r"[-\s]+", "-", cleaned)
     return hyphenated[:60]
 
+
+def append_log(
+    vault: Path,
+    operation: str,
+    title: str,
+    details: dict[str, str],
+) -> None:
+    """Append a structured entry to {vault}/log.md."""
+    log_path = vault / "log.md"
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+    lines = [f"## [{date_str}] {operation} | {title}"]
+    for key, value in details.items():
+        lines.append(f"{key}: {value}")
+    lines.append("")
+    with log_path.open("a") as f:
+        f.write("\n".join(lines) + "\n")
 
 
 def open_in_obsidian(vault: Path, filepath: str) -> None:

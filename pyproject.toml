@@ -1,6 +1,6 @@
 [project]
 name = "mindloom"
-version = "0.1.0"
+version = "0.2.0"
 description = "Weave raw knowledge into structured Obsidian wikis, powered by Claude Code"
 readme = "README.md"
 license = "MIT"

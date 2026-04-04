@@ -15,6 +15,7 @@ The wiki is YOUR domain — the user rarely edits it directly.
 ├── attachments/   ← Images organized by article slug
 ├── _meta/         ← System files (db, lint reports)
 ├── _index.md      ← Master index (you maintain this)
+├── log.md         ← Operation log (managed by Python, don't edit)
 └── CLAUDE.md      ← This file
 ```
 
@@ -121,6 +122,36 @@ When answering questions:
 5. If the wiki doesn't have enough info, say so clearly.
 6. When asked for Marp slides, use `marp: true` frontmatter and `---` between slides.
 7. When saving output, write to `outputs/` with proper frontmatter.
+
+## Q&A wiki promotion
+
+After answering a question saved to outputs/, evaluate whether the answer merits promotion to wiki/:
+
+**Promote when** the answer contains:
+- Synthesis across 2+ sources that doesn't exist in any single wiki page
+- Comparison or contrast between concepts
+- Novel connections between topics
+- Coverage of a subject not yet represented in wiki/
+
+**Skip promotion when** the answer is:
+- Direct retrieval of facts already well-covered in wiki/
+- Too narrow or personal to be encyclopedic
+- A simple list or lookup
+
+**When promoting:**
+1. Create or update the appropriate wiki/ page following the compilation rules above
+2. Add [[wikilinks]] bidirectionally
+3. Update _index.md
+4. Note the promotion at the bottom of the output file: `> Promoted to wiki: [[wiki/page-name]]`
+
+## Post-compile lint
+
+After compilation, a quick lint pass may run automatically. This is lighter than a full lint:
+- Fix broken [[wikilinks]] in newly compiled articles and their neighbors
+- Add missing cross-references
+- Fix orphan pages that should connect to new content
+- Verify _index.md completeness
+Do not generate a lint report for post-compile passes. Just fix issues silently.
 
 ## Tools available to you
 

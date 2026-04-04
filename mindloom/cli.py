@@ -50,7 +50,10 @@ def add(
     tag_list = [t.strip() for t in tags.split(",") if t.strip()]
     try:
         result = api.add(
-            url, vault, tags=tag_list, compile_after=compile_after,
+            url,
+            vault,
+            tags=tag_list,
+            compile_after=compile_after,
         )
     except VaultNotFoundError as e:
         _handle_vault_error(e)
@@ -59,9 +62,7 @@ def add(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
 
-    console.print(
-        f"[green]\u2713[/green] {result['rel_path']} ({result['title']})"
-    )
+    console.print(f"[green]\u2713[/green] {result['rel_path']} ({result['title']})")
 
 
 # ─── compile ─────────────────────────────────────────────────────────────────
@@ -70,11 +71,14 @@ def add(
 @app.command()
 def compile(
     full: bool = typer.Option(False, "--full"),
+    auto_lint: bool = typer.Option(
+        True, "--lint/--no-lint", help="Auto-lint after compilation"
+    ),
     vault: str = VaultOption,
 ) -> None:
     """Compile unprocessed raw articles into wiki."""
     try:
-        result = api.compile_vault(vault, full=full)
+        result = api.compile_vault(vault, full=full, auto_lint=auto_lint)
     except VaultNotFoundError as e:
         _handle_vault_error(e)
         return
@@ -85,9 +89,7 @@ def compile(
     if result["compiled_count"] == 0:
         console.print("[yellow]Nothing to compile.[/yellow]")
     else:
-        console.print(
-            f"[bold]Compiled {result['compiled_count']} article(s).[/bold]"
-        )
+        console.print(f"[bold]Compiled {result['compiled_count']} article(s).[/bold]")
 
 
 # ─── ask ─────────────────────────────────────────────────────────────────────
@@ -97,12 +99,15 @@ def compile(
 def ask(
     question: str = typer.Argument(...),
     output: str = typer.Option("terminal", "--output", "-o"),
+    promote: bool = typer.Option(
+        True, "--promote/--no-promote", help="Auto-promote wiki-worthy answers"
+    ),
     vault: str = VaultOption,
 ) -> None:
     """Ask a question — Claude Code researches your wiki."""
     fmt = "text" if output == "terminal" else output
     try:
-        result = api.ask(question, vault, output_format=fmt)
+        result = api.ask(question, vault, output_format=fmt, promote=promote)
     except VaultNotFoundError as e:
         _handle_vault_error(e)
         return
