@@ -1,7 +1,5 @@
 # mindloom
 
-Weave raw knowledge into structured Obsidian wikis, powered by Claude Code.
-
 Inspired by [Andrej Karpathy's LLM Knowledge Bases](https://x.com/karpathy/status/2039805659525644595) workflow.
 You curate (paste a link). Claude Code thinks (compile, cross-link, answer, lint).
 
